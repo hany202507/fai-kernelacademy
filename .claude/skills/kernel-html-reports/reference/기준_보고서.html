@@ -1,0 +1,792 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HTML 스킬 진단과 기준 스타일 재설계 (B)</title>
+<link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css">
+<style>
+  /* ============================================================
+     테마 토큰 — 여기만 갈아끼우면 문서 전체의 인상이 바뀐다.
+     아래 어느 규칙에도 색 리터럴을 직접 쓰지 않는다.
+     a1/a2/a3 는 장(章) 순환 액센트, risk 는 경고 전용.
+     ============================================================ */
+  :root{
+    --bg:#FFFFFF;       /* 바탕은 순백. 그라데이션을 쓰지 않는다 */
+    --card:#FFFFFF;
+    --tint:#F7F9FC;     /* 면을 아주 옅게 눕힐 때만 */
+    --ink:#0A1628;      /* 제목 */
+    --body:#39445A;     /* 본문 */
+    --muted:#6B7688;    /* 보조 */
+    --faint:#9AA3B2;    /* 라벨 */
+    --line:#E3E7EE;
+    --line2:#F1F3F7;
+    --rule:#0A1628;     /* 표·요약 위에 긋는 굵은 규칙선 */
+
+    --a1:#1E50D8; --a1t:#1741B4; --a1b:#EAF0FF;   /* 블루 */
+    --a2:#4338CA; --a2t:#332BA6; --a2b:#EDEBFD;   /* 인디고 — 순환에서 초록을 뺀다 */
+    --a3:#C2761A; --a3t:#96590F; --a3b:#FBF1E1;   /* 앰버 */
+    --risk:#D4453B; --riskT:#B5322A; --riskB:#FDECEA;
+
+    --sh:0 1px 2px rgba(10,22,40,.04);
+    --sh-sm:0 1px 2px rgba(10,22,40,.035);
+  }
+  *{box-sizing:border-box; margin:0; padding:0}
+  html{scroll-behavior:smooth; scroll-padding-top:88px}
+  body{
+    font-family:'Pretendard Variable',Pretendard,-apple-system,'Apple SD Gothic Neo','Malgun Gothic','Segoe UI',sans-serif;
+    background:var(--bg);
+    color:var(--body);
+    -webkit-font-smoothing:antialiased;
+    text-rendering:optimizeLegibility;
+    /* 숫자는 문서 전체에서 자릿수를 맞춘다 — 재무 문서의 기본기 */
+    font-variant-numeric:tabular-nums;
+    /* 한글은 기본값에서 어절 중간이 잘린다('프레임워크' → '프레임/워크').
+       keep-all로 어절을 지키고, 끊을 곳이 없는 긴 문자열만 예외로 끊는다. */
+    word-break:keep-all;
+    overflow-wrap:break-word;
+  }
+
+  /* =================== layout =================== */
+  .wrap{max-width:1240px; margin:0 auto; padding:0 44px 120px;
+    display:grid; grid-template-columns:238px minmax(0,1fr); gap:60px; align-items:start}
+  .doc{max-width:790px; padding-top:72px; padding-left:90px}
+  @media (max-width:1080px){
+    .wrap{grid-template-columns:minmax(0,1fr); gap:0; padding:0 26px 90px}
+    .toc{display:none}
+  }
+
+  /* =================== TOC (sticky sidebar) =================== */
+  .toc{position:sticky; top:0; padding-top:96px; max-height:100vh; overflow-y:auto}
+  /* 목차 머리가 '지금 몇 장 중 몇 장'을 함께 진다 — 자매 스킬 슬라이드의 좌하단 표시와 같은 몫. */
+  .toc .tk{display:flex; align-items:baseline; justify-content:space-between; gap:10px;
+    font-size:11.5px; font-weight:800; letter-spacing:.16em; color:var(--faint); margin-bottom:16px}
+  .toc .tk b{font-size:12px; letter-spacing:.04em; color:var(--muted); font-weight:800;
+    font-variant-numeric:tabular-nums}
+  .toc a{display:flex; gap:11px; align-items:baseline; text-decoration:none;
+    padding:9px 12px 9px 11px; border-radius:10px; border-left:2px solid transparent;
+    font-size:14.5px; font-weight:600; color:var(--muted); line-height:1.4; transition:.18s}
+  .toc a .tn{font-size:11.5px; font-weight:800; letter-spacing:.06em; color:var(--faint);
+    font-variant-numeric:tabular-nums; flex:0 0 auto}
+  .toc a:hover{color:var(--ink); background:rgba(16,26,44,.035)}
+  .toc a.on{color:var(--ink); background:var(--card); border-left-color:var(--a1); box-shadow:var(--sh-sm)}
+  .toc a.on .tn{color:var(--a1t)}
+
+  /* =================== chrome =================== */
+  .progress{position:fixed; top:0; left:0; right:0; height:3px; background:rgba(16,26,44,.06); z-index:30}
+  .progress i{display:block; height:100%; width:0;
+    background:var(--a1)}
+  .tools{position:fixed; top:18px; right:26px; z-index:30; display:flex; gap:8px}
+  .tools button{height:34px; padding:0 15px; border-radius:9px; cursor:pointer; color:var(--muted);
+    background:var(--card); border:1px solid var(--line); font:inherit; font-size:13.5px; font-weight:600;
+    display:flex; align-items:center; gap:7px; transition:.2s; box-shadow:var(--sh-sm)}
+  .tools button:hover{color:var(--ink); border-color:rgba(16,26,44,.2)}
+
+  /* =================== 인쇄 전 안내 (화면 전용) =================== */
+  .pnote{position:fixed; inset:0; z-index:40; display:none; align-items:center; justify-content:center;
+    background:rgba(15,26,44,.45); padding:20px}
+  .pnote.on{display:flex}
+  .pbox{max-width:470px; background:var(--card); border:1px solid var(--line);
+    border-radius:16px; padding:24px 26px; box-shadow:var(--sh)}
+  .pbox .ck{font-size:11.5px; font-weight:800; letter-spacing:.14em; color:var(--riskT)}
+  .pbox p{font-size:15px; line-height:1.72; color:var(--body); margin-top:10px}
+  .pbox p b{color:var(--ink); font-weight:750}
+  .pbtns{display:flex; gap:8px; margin-top:18px; justify-content:flex-end}
+  .pbtns button{height:34px; padding:0 16px; border-radius:9px; cursor:pointer; font:inherit;
+    font-size:13.5px; font-weight:650; border:1px solid var(--line);
+    background:var(--card); color:var(--muted)}
+  .pbtns #pgo{background:var(--a1); border-color:var(--a1); color:#fff}
+
+  /* =================== reveal anim =================== */
+  [data-anim]{opacity:0; transform:translateY(16px)}
+  [data-anim].in{animation:rise .7s cubic-bezier(.2,.72,.18,1) both;
+    animation-delay:calc(var(--d,0) * .07s)}
+  @keyframes rise{to{opacity:1; transform:none}}
+  @media (prefers-reduced-motion:reduce){
+    [data-anim]{opacity:1; transform:none}
+    [data-anim].in{animation:none}
+  }
+
+  /* =================== shared type =================== */
+  /* 라벨은 배지 하나로 끝낸다 — 점·선 장식을 겹쳐 쓰지 않는다 */
+  /* inline-block으로 둔다. inline-flex + border-radius 조합은 Chrome이 별도 페인트
+     레이어로 떼어내고, 그러면 인쇄 PDF에서 이 배지가 독립 텍스트 스트림이 되어
+     printcheck의 '스트림 하나 = 페이지 하나' 가정을 깨뜨린다(페이지가 한 칸 밀린다). */
+  .eyebrow{display:inline-block; padding:6px 12px; border-radius:7px;
+    background:var(--bgc,var(--a1b)); font-size:12px; font-weight:800; letter-spacing:.13em;
+    color:var(--ct,var(--a1t))}
+  .eyebrow .dot{display:none}
+  .eyebrow b{color:inherit; font-weight:800}
+  /* opacity 금지: 인쇄에서 합성 레이어가 생겨 별도 텍스트 스트림이 되고,
+     printcheck의 페이지 매핑이 통째로 어긋난다. 흐리게 할 땐 색으로 흐리게 한다. */
+  .eyebrow .en{color:var(--muted); font-weight:800; font-size:12px; letter-spacing:.13em; margin-left:8px}
+  /* 그라데이션 텍스트는 인쇄에서 통째로 사라진다. 단색으로만 강조한다. */
+  .mark{color:var(--a1t)}
+  .mono{font-family:'SF Mono',ui-monospace,'Cascadia Code',Consolas,monospace; font-weight:700; font-size:.94em}
+
+  /* =================== cover (report head) =================== */
+  .rhead{padding:26px 0 46px; border-bottom:1px solid var(--line)}
+  .rhead h1{font-size:50px; font-weight:800; letter-spacing:-.028em; line-height:1.14;
+    color:var(--ink); margin-top:24px}
+  .rhead .sub{font-size:19px; color:var(--muted); line-height:1.62; margin-top:20px; max-width:680px}
+  .rhead .sub b{color:var(--ink); font-weight:700}
+  .meta{display:flex; flex-wrap:wrap; gap:0 40px; margin-top:34px}
+  .meta div{display:flex; flex-direction:column; gap:6px}
+  .meta dt{font-size:11.5px; font-weight:800; letter-spacing:.14em; color:var(--faint)}
+  .meta dd{font-size:15px; font-weight:650; color:var(--ink)}
+
+  /* =================== executive summary =================== */
+  .summary{position:relative; margin-top:40px; border-radius:14px; padding:28px 30px 26px;
+    background:var(--tint); border:1px solid var(--line2); border-top:2px solid var(--rule)}
+  .summary .sk{font-size:11.5px; font-weight:800; letter-spacing:.14em; color:var(--a1t)}
+  .summary h2{font-size:23px; font-weight:800; letter-spacing:-.015em; color:var(--ink); margin-top:12px}
+  .summary p{font-size:16.5px; line-height:1.72; color:var(--body); margin-top:14px}
+  .summary p b{color:var(--ink); font-weight:750}
+  .summary .pts{margin-top:16px}
+
+  /* =================== section =================== */
+  .sec{padding-top:72px}
+  /* 장 머리(라벨+제목+리드)는 '표지'처럼 한 덩어리로 읽혀야 한다.
+     표지(.rhead)와 같은 하단 헤어라인으로 본문과 끊고, 리드는 본문보다
+     확실히 큰 데크 문장으로 띄운다. 이 셋(선·크기차·여백)이 함께 있어야
+     리드가 그냥 첫 문단으로 보이지 않는다. */
+  /* 장 머리 뒤는 좁게 둔다. 첫 소제목 앞에 오는 도입 문단은 '장의 서문'이라
+     헤어라인 바로 아래 붙어 있어야 장 머리의 일부로 읽힌다. 여기를 넓히면
+     그 문단이 어느 절에도 속하지 않은 채 공중에 뜬다. */
+  .sech{margin-bottom:32px; padding-bottom:30px; border-bottom:1px solid var(--line)}
+  /* 반대로 장 머리 '다음에 곧바로' 소제목이 오는 장은 소제목끼리의 간격(92px)보다
+     더 벌려야 '장이 시작한다'와 '절이 바뀐다'가 같은 크기로 보이지 않는다. */
+  .sech + h3{margin-top:116px}
+  /* 장의 색은 뒤에 깔리는 큰 고스트 번호가 진다. 라벨은 같은 색의 작은 글자로 얹는다.
+     opacity 를 쓰지 않고 옅은 단색(--bgc)으로 채운다 — opacity 는 인쇄에서
+     합성 레이어를 만들어 printcheck 의 페이지 매핑을 깨뜨린다. */
+  .sech{position:relative}
+  /* 여백 칸 안에서 오른쪽 정렬한다. 본문 위로 넘어오면 제목 글자와 엉킨다. */
+  .sech::before{content:attr(data-n); position:absolute; left:-90px; top:-20px; z-index:0;
+    width:76px; text-align:right; white-space:nowrap;
+    font-size:62px; font-weight:800; letter-spacing:-.05em; line-height:1;
+    color:var(--bgc,var(--a1b)); pointer-events:none; user-select:none}
+  .sech > *{position:relative; z-index:1}
+  .sech .no{font-size:12px; font-weight:800; letter-spacing:.16em; color:var(--ct,var(--a1t))}
+  .sech h2{position:relative; font-size:33px; font-weight:800; letter-spacing:-.022em; line-height:1.22;
+    color:var(--ink); margin-top:14px}
+  .sech .lead{font-size:19.5px; font-weight:500; letter-spacing:-.008em; line-height:1.66;
+    color:var(--muted); margin-top:22px}
+  .sech .lead b{color:var(--ink); font-weight:700}
+
+  /* 소제목 앞 여백은 '절이 바뀐다'는 신호다. 뒤 본문(15px)의 4배 이상 벌려야
+     읽는 사람이 절의 경계를 눈으로 잡는다. 좁히면 문단 사이와 구분되지 않는다. */
+  h3{font-size:21px; font-weight:750; letter-spacing:-.015em; color:var(--ink); margin-top:108px}
+  h4{font-size:17px; font-weight:750; letter-spacing:-.01em; color:var(--ink); margin-top:62px}
+  .doc p{font-size:16.5px; line-height:1.78; color:var(--body); margin-top:28px}
+  /* 시각 블록이 연달아 오면(표 → 콜아웃, 카드 → 단계 …) 둘이 한 덩어리로 붙어 보인다.
+     블록↔블록, 그리고 블록 다음 문단은 문단 사이(28px)보다 넓게 띄운다.
+     표 주석(.cap)은 표에 붙어 있어야 하므로 .doc p.cap 규칙(더 높은 명시도)이 그대로 이긴다.
+     새 컴포넌트를 만들면 이 목록 양쪽에 클래스를 추가해야 간격이 따라온다. */
+  :is(.figw,.tw,.cards,.stats,.steps,.kv,.callout,.quote,.code,.banner,.pts,.nums)
+  + :is(.figw,.tw,.cards,.stats,.steps,.kv,.callout,.quote,.code,.banner,.pts,.nums,p){margin-top:46px}
+  /* 소제목 바로 아래는 문단 사이보다 더 벌린다. 소제목 '앞'만 넓히고 '뒤'를
+     문단 간격과 같게 두면, 소제목이 아래 본문에 붙어 한 덩어리로 뭉쳐 보인다.
+     대상은 절 소제목뿐 — 카드·단계 안의 h3는 제외해야 하므로 .sec 직계만 잡는다. */
+  .sec > h3 + *, .sec > h4 + *{margin-top:36px}
+  .doc p b{color:var(--ink); font-weight:700}
+  .doc a{color:var(--a1t); text-decoration:none; border-bottom:1px solid rgba(46,107,255,.3)}
+  .doc a:hover{border-bottom-color:var(--a1t)}
+  .lift{color:var(--faint); font-size:14.5px}
+
+  /* =================== lists =================== */
+  .pts{margin-top:24px; list-style:none; display:flex; flex-direction:column; gap:13px}
+  .pts li{position:relative; padding-left:22px; font-size:16.5px; line-height:1.68; color:var(--body)}
+  .pts li::before{content:''; position:absolute; left:2px; top:10px; width:7px; height:7px;
+    border-radius:50%; background:var(--c,var(--a1))}
+  .pts li b{color:var(--ink); font-weight:750}
+  .nums{margin-top:24px; list-style:none; counter-reset:n; display:flex; flex-direction:column; gap:15px}
+  .nums li{position:relative; padding-left:38px; font-size:16.5px; line-height:1.68; color:var(--body)}
+  .nums li::before{counter-increment:n; content:counter(n,decimal-leading-zero);
+    position:absolute; left:0; top:1px; font-size:13px; font-weight:800; letter-spacing:.04em;
+    color:var(--ct,var(--a1t)); font-variant-numeric:tabular-nums}
+  .nums li b{color:var(--ink); font-weight:750}
+
+  /* =================== table =================== */
+  /* 표(또는 그림) + 주석을 한 덩어리로 묶는 껍데기. 인쇄에서 절대 갈라지지 않는다. */
+  .figw{margin-top:22px}
+  .figw > .tw{margin-top:0}
+  /* 위에 굵은 규칙선, 아래 얇은 선. 표를 상자에 넣지 않는다 — 재무 표의 관습이다. */
+  .tw{margin-top:22px; background:var(--card);
+    border-top:2px solid var(--c,var(--rule)); border-bottom:1px solid var(--line)}
+  table{width:100%; border-collapse:collapse}
+  thead th{text-align:left; font-size:12px; font-weight:800; letter-spacing:.1em; color:var(--faint);
+    background:transparent; padding:13px 16px; white-space:nowrap; border-bottom:1px solid var(--line)}
+  tbody td{font-size:15.5px; line-height:1.6; color:var(--body); padding:14px 16px;
+    border-top:1px solid var(--line2); vertical-align:top}
+  tbody tr:first-child td{border-top:1px solid var(--line)}
+  tbody td:first-child{font-weight:700; color:var(--ink); white-space:nowrap}
+  tbody td.wrap{white-space:normal}   /* 첫 열이 길어 줄바꿈이 필요할 때만 */
+  tbody td b{color:var(--ink); font-weight:700}
+  .num{text-align:right; font-variant-numeric:tabular-nums}
+  /* 선택자를 .doc p보다 강하게 잡아야 한다(.cap 하나로는 .doc p에 눌려 크기가 안 먹는다) */
+  .doc p.cap{margin-top:11px; font-size:13.5px; color:var(--faint); line-height:1.5}
+
+  /* =================== callout =================== */
+  .callout{position:relative; margin-top:24px; border-radius:0 10px 10px 0; padding:20px 24px 18px;
+    background:var(--tint); border:0; border-left:3px solid var(--c,var(--a1)); overflow:hidden}
+  .callout .ck{font-size:11.5px; font-weight:800; letter-spacing:.14em; color:var(--ct,var(--a1t))}
+  .callout p{margin-top:10px; font-size:16px; line-height:1.7}
+  .callout .pts{margin-top:12px}
+  .callout .pts li{font-size:15.5px}
+  .callout.tone{background:var(--bgc,var(--a1b))}   /* 특히 강조할 때만 액센트 면 */
+
+  /* =================== stats =================== */
+  .stats{display:grid; grid-template-columns:repeat(3,1fr); gap:16px; margin-top:24px}
+  .stats.two{grid-template-columns:repeat(2,1fr)}
+  .stat{position:relative; border-radius:12px; padding:20px 20px 18px; background:var(--tint);
+    border:1px solid var(--line2); overflow:hidden}
+  .stat .sl{font-size:12px; font-weight:800; letter-spacing:.1em; color:var(--faint)}
+  /* 숫자 자체가 장의 색을 진다 */
+  .stat .sv{font-size:34px; font-weight:800; letter-spacing:-.03em; color:var(--ct,var(--a1t)); margin-top:12px;
+    font-variant-numeric:tabular-nums; line-height:1.05}
+  .stat .sv small{font-size:17px; font-weight:750; color:var(--muted); margin-left:3px; letter-spacing:0}
+  .stat .sd{font-size:13.5px; line-height:1.5; color:var(--muted); margin-top:10px}
+
+  /* =================== cards =================== */
+  .cards{display:grid; grid-template-columns:repeat(2,1fr); gap:16px; margin-top:24px}
+  .cards.three{grid-template-columns:repeat(3,1fr)}
+  .card{position:relative; border-radius:12px; padding:22px 22px 20px; background:var(--card);
+    border:1px solid var(--line); overflow:hidden}
+  .card .idx{font-size:12px; font-weight:800; letter-spacing:.14em; color:var(--ct,var(--a1t))}
+  .card h3{font-size:20px; font-weight:750; margin-top:12px; letter-spacing:-.012em; color:var(--ink)}
+  .card p{font-size:15.5px; line-height:1.64; margin-top:10px}
+  .card .pts{margin-top:12px}
+  .card .pts li{font-size:15px}
+
+  /* =================== steps (vertical timeline) =================== */
+  .steps{margin-top:26px; display:flex; flex-direction:column}
+  .stp{position:relative; padding:0 0 26px 40px; border-left:2px solid var(--line)}
+  .stp:last-child{border-left-color:transparent; padding-bottom:0}
+  .stp::before{content:''; position:absolute; left:-7px; top:4px; width:12px; height:12px; border-radius:50%;
+    background:var(--c,var(--a1)); box-shadow:0 0 0 4px var(--bg)}
+  .stp .sn{font-size:12px; font-weight:800; letter-spacing:.14em; color:var(--ct,var(--a1t))}
+  .stp h3{font-size:19px; margin-top:9px}
+  .stp p{font-size:15.5px; line-height:1.66; margin-top:8px}
+
+  /* =================== definition rows =================== */
+  .kv{margin-top:22px; border-radius:16px; background:var(--card); border:1px solid var(--line);
+    box-shadow:var(--sh-sm); padding:6px 26px}
+  .kv .row{display:flex; gap:24px; align-items:baseline; padding:16px 0; border-top:1px solid var(--line2)}
+  .kv .row:first-child{border-top:none}
+  .kv .row .k{flex:0 0 148px; font-size:16px; font-weight:800; color:var(--ink); line-height:1.45}
+  .kv .row .d{flex:1; font-size:15.5px; color:var(--muted); line-height:1.62}
+  .kv .row .d b{color:var(--body); font-weight:750}
+
+  /* =================== quote / code =================== */
+  .quote{margin-top:24px; padding:4px 0 4px 26px; border-left:3px solid var(--c,var(--a2))}
+  .quote p{font-size:17.5px; line-height:1.72; color:var(--ink); font-weight:550; margin-top:0}
+  .quote .by{margin-top:12px; font-size:13.5px; color:var(--faint); font-weight:600}
+  .code{margin-top:22px; border-radius:14px; border:1px solid var(--line); background:#0F1A2C;
+    padding:20px 22px; overflow-x:auto; box-shadow:var(--sh-sm)}
+  .code pre{font-family:'SF Mono',ui-monospace,'Cascadia Code',Consolas,monospace;
+    font-size:13.5px; line-height:1.72; color:#D6DEEE; white-space:pre}
+
+  /* =================== banner / refs / footer =================== */
+  .banner{border-radius:14px; padding:26px 32px; margin-top:30px; text-align:left; color:#fff;
+    background:var(--rule); border:0;
+    font-size:20px; font-weight:750; letter-spacing:-.012em; line-height:1.55}
+  /* 잉크 면 위 강조는 굵기로만. 밑줄·형광 효과는 취소선처럼 읽힌다. */
+  .banner b{color:#fff; font-weight:800}
+  .refs{margin-top:20px; list-style:none; counter-reset:r; display:flex; flex-direction:column; gap:10px}
+  .refs li{position:relative; padding-left:32px; font-size:14.5px; line-height:1.6; color:var(--muted)}
+  .refs li::before{counter-increment:r; content:'[' counter(r) ']'; position:absolute; left:0; top:0;
+    font-size:13px; font-weight:800; color:var(--faint)}
+  .foot{margin-top:80px; padding-top:26px; border-top:1px solid var(--line);
+    display:flex; justify-content:space-between; gap:20px; flex-wrap:wrap;
+    font-size:13.5px; color:var(--faint)}
+  .foot b{color:var(--muted); font-weight:700}
+
+  /* =================== print / PDF (A4) =================== */
+  /* 페이지 번호는 CSS가 하단 가운데에 찍는다.
+     → 브라우저 인쇄 대화상자의 '머리글 및 바닥글'은 반드시 끈다(날짜·제목·URL 제거). */
+  @page{
+    size:A4; margin:15mm 15mm 14mm;
+    @bottom-center{content:counter(page); font-family:sans-serif; font-size:9pt; color:#8A93A6}
+  }
+
+  @media print{
+    /* --- 인쇄 스케일 손잡이 ---
+       페이지가 넘치거나 아래쪽 공백이 크면 여기부터 조정한다(문서 전체에 걸린다).
+         --pgap 여백 배율   0.55 ~ 1.15  (가장 먼저 만지는 손잡이)
+                            소제목·장 머리 여백도 이 배율을 타므로, 위계 여백이 넉넉한
+                            이 템플릿에서는 0.55~0.8이 정상 작동 범위다(좁다는 뜻이 아니다).
+                            분량이 많고 시각 블록이 촘촘한 문서일수록 낮은 쪽을 쓴다.
+         --pfs  본문 크기   9.8pt ~ 11pt
+         --ph3  소제목 크기 12pt ~ 14pt
+         --ph2  장 제목     17pt ~ 21pt
+       이 범위를 벗어나야 맞는다면 크기가 아니라 분량이 잘못된 것이니 본문을 손본다. */
+    :root{--pfs:10.4pt; --plh:1.62; --ph2:19pt; --ph3:13pt; --pgap:1.1}
+
+    /* 배경·테두리 색을 인쇄에서도 그대로 (브라우저 '배경 그래픽' 설정과 무관하게) */
+    *{-webkit-print-color-adjust:exact!important; print-color-adjust:exact!important}
+
+    html{scroll-padding-top:0}
+    body{background:#fff}
+    .progress,.tools,.toc,.pnote{display:none!important}
+    .wrap{display:block; max-width:none; padding:0}
+    .doc{max-width:none; padding-top:0; padding-left:54pt}
+    [data-anim]{opacity:1!important; transform:none!important; animation:none!important}
+
+    /* 그라데이션 텍스트(background-clip:text)는 인쇄에서 통째로 사라진다 → 단색으로 */
+    .mark{background:none; -webkit-background-clip:border-box; background-clip:border-box;
+      -webkit-text-fill-color:currentColor; color:var(--a1t)}
+
+    /* --- 페이지 분할: 장(h2) 하나가 새 페이지에서 시작 --- */
+    .sec{break-before:page; padding-top:0}
+    /* 한 장을 두 .sec로 쪼개 놓은 경우에만 뒤쪽에 붙인다(뒤쪽엔 장 머리 없음).
+       자투리 페이지·채움률 때문에 붙이면 h2가 페이지 중간에서 시작한다 — 금지. */
+    .sec.cont{break-before:auto; padding-top:14pt}
+    h3.pb,h4.pb{break-before:page}   /* 이 소제목부터 새 페이지에서 시작(예: 참고 절) */
+    /* 제목·소제목은 (1) 자기 자신이 갈라지지 않고 (2) 뒤에 오는 내용과 붙어 다닌다.
+       그래서 소제목만 페이지 끝에 홀로 남거나, 소제목과 그림이 갈라지지 않는다. */
+    h2,h3,h4,.sech{break-inside:avoid}
+    .sech,h3,h4{break-after:avoid}
+
+    /* break-after:avoid는 '바로 다음 형제'만 붙잡는다. 실제 구조는 대개
+       「소제목 → 도입 문단 → 그림」이라, 도입 문단도 뒤 블록과 붙여 줘야
+       소제목과 그림이 갈라지지 않는다.
+       주의: 이 목록에 h3/h4를 넣으면 안 된다. 문단은 '앞' 소제목에 속하지 '뒤' 소제목에
+       속하지 않으므로 붙일 이유가 없고, 붙이면 avoid가 연쇄한다
+       — 「앞 절의 마지막 문단 → 소제목 → 도입 문단 → 그림」이 통째로 분리 불가
+       덩어리가 되어 다음 페이지로 밀리고, 앞 페이지가 크게 빈 채 남는다.
+       소제목이 페이지 끝에 홀로 남는 것은 h3 자신의 break-after:avoid가 이미 막는다. */
+    p:has(+ .figw), p:has(+ .tw), p:has(+ .cards), p:has(+ .stats), p:has(+ .steps), p:has(+ .kv),
+    p:has(+ .callout), p:has(+ .quote), p:has(+ .code), p:has(+ .banner),
+    p:has(+ .pts), p:has(+ .nums){break-after:avoid}
+
+    /* 표·그림의 주석은 앞의 블록을 따라간다(주석만 다음 장으로 넘어가지 않는다).
+       주의: 여기에 '주석 뒤 문단'까지 물리면 「표+주석+문단」 덩어리가 커져
+       Chrome이 연쇄 avoid를 포기하고 오히려 주석이 표에서 떨어진다.
+       표에 딸린 설명은 표 '앞'에 쓰고, 표 뒤에는 주석 한 줄만 둔다. */
+    .cap{break-before:avoid}
+
+    /* 불릿·번호 목록도 '그림'처럼 통째로 유지한다(소제목의 내용이 갈라지지 않게). */
+    .pts,.nums{break-inside:avoid}
+    /* 아래 블록은 '그림' 한 장으로 취급한다 — 페이지 경계에서 쪼개지지 않는다.
+       한 페이지에 못 들어갈 만큼 커지면 브라우저가 어쩔 수 없이 쪼개므로,
+       항목 수를 줄이거나 블록을 둘로 나눠서 애초에 넘치지 않게 만든다. */
+    /* Chrome은 flex/grid 컨테이너의 break-inside:avoid를 무시한다.
+       인쇄에서만 블록으로 되돌려야 '그림 한 장'이 실제로 지켜진다(보이는 모양은 같다). */
+    .steps{display:block}
+    .card,.stat,.callout,.quote,.stp,.tw,.banner,.summary,.kv,.code,
+    .cards,.stats,.steps,.figw,figure,img,svg{break-inside:avoid}
+    tr,li{break-inside:avoid}
+    thead{display:table-header-group}    /* 한 쪽을 넘는 표는 머리행을 다시 찍는다 */
+    p,li{orphans:3; widows:3}
+
+    /* --- 인쇄용 크기·여백 --- (여백은 모두 --pgap 배율을 탄다) */
+    .rhead{padding:0 0 calc(16pt * var(--pgap))}
+    .rhead h1{font-size:30pt; margin-top:calc(12pt * var(--pgap))}
+    .rhead .sub{font-size:12pt; margin-top:calc(10pt * var(--pgap)); line-height:1.55}
+    .meta{margin-top:calc(16pt * var(--pgap)); gap:0 26pt}
+    .meta dd{font-size:10.5pt}
+    .summary{margin-top:calc(16pt * var(--pgap)); padding:16pt 18pt; border-radius:10pt}
+    .summary h2{font-size:14.5pt; margin-top:6pt}
+    .summary p{font-size:var(--pfs); line-height:var(--plh); margin-top:calc(8pt * var(--pgap))}
+
+    /* 화면과 같은 장치(헤어라인 + 데크 크기차 + 여백)를 인쇄에서도 유지한다.
+       여기를 줄이면 리드가 첫 문단과 붙어 버린다 — 줄일 곳은 --pgap이다. */
+    .sech{margin-bottom:calc(13pt * var(--pgap)); padding-bottom:calc(11pt * var(--pgap))}
+    .sech + h3{margin-top:calc(42pt * var(--pgap))}
+    .sech h2{font-size:var(--ph2); margin-top:6pt; padding-bottom:8pt}
+    .sech::before{font-size:36pt; top:-10pt; left:-54pt; width:46pt}
+    .sech .lead{font-size:12.6pt; margin-top:calc(9pt * var(--pgap)); line-height:1.5}
+    /* 간격 사다리(원칙 9): 문단 12pt < 소제목 뒤 16pt < 블록 사이 20pt < 소제목 앞 36pt
+       < 장 머리→첫 소제목 42pt. 장 머리 뒤(13pt)만 예외로 좁다 — 도입 문단을 장 머리에
+       붙여 두기 위해서다. 페이지가 넘치면 이 값들이 아니라 --pgap을 낮춘다. */
+    h3{font-size:var(--ph3); margin-top:calc(36pt * var(--pgap))}
+    h4{font-size:11.4pt; margin-top:calc(23pt * var(--pgap))}
+    .doc p{font-size:var(--pfs); line-height:var(--plh); margin-top:calc(12pt * var(--pgap))}
+    .sec > h3 + *, .sec > h4 + *{margin-top:calc(16pt * var(--pgap))}
+    :is(.figw,.tw,.cards,.stats,.steps,.kv,.callout,.quote,.code,.banner,.pts,.nums)
+    + :is(.figw,.tw,.cards,.stats,.steps,.kv,.callout,.quote,.code,.banner,.pts,.nums,p){margin-top:calc(20pt * var(--pgap))}
+
+    .pts,.nums{margin-top:calc(13pt * var(--pgap)); gap:calc(6pt * var(--pgap))}
+    .pts li,.nums li{font-size:var(--pfs); line-height:var(--plh)}
+    .pts li{padding-left:14pt}
+    .nums li{padding-left:24pt}
+    .nums li::before{font-size:8.6pt}
+
+    .tw,.kv,.cards,.stats,.steps,.callout,.code,.quote{margin-top:calc(11pt * var(--pgap))}
+    thead th{font-size:8.6pt; padding:calc(7pt * var(--pgap)) 10pt}
+    tbody td{font-size:9.6pt; padding:calc(7pt * var(--pgap)) 10pt}
+    .doc p.cap{font-size:8.8pt; margin-top:calc(6pt * var(--pgap)); line-height:1.5}
+    .callout{padding:calc(12pt * var(--pgap)) 15pt; border-radius:10pt}
+    .callout p{font-size:9.9pt; margin-top:6pt}
+    .kv{padding:2pt 15pt; border-radius:10pt}
+    .kv .row{padding:calc(9pt * var(--pgap)) 0}
+    .kv .row .k{flex-basis:96pt; font-size:10.2pt}
+    .kv .row .d{font-size:9.7pt; line-height:1.55}
+    .cards,.stats{gap:calc(9pt * var(--pgap))}
+    .card{padding:calc(13pt * var(--pgap)) 14pt; border-radius:11pt}
+    .card h3{font-size:12pt; margin-top:6pt}
+    .card p{font-size:9.7pt; line-height:1.5; margin-top:6pt}
+    .card .pts li{font-size:9.5pt}
+    .stat{padding:calc(12pt * var(--pgap)) 13pt; border-radius:11pt}
+    .stat .sv{font-size:21pt; margin-top:7pt}
+    .stat .sd{font-size:9.2pt; margin-top:6pt}
+    .steps .stp{padding:0 0 calc(12pt * var(--pgap)) 22pt}
+    .stp h3{font-size:11.8pt; margin-top:5pt}
+    .stp p{font-size:9.7pt; line-height:1.55; margin-top:5pt}
+    /* 13.4pt: h3(--ph3 기본 13pt)와 크기가 겹치면 printcheck가 배너를 소제목으로 오인한다 */
+    .banner{margin-top:calc(14pt * var(--pgap)); padding:14pt 18pt; font-size:13.4pt; border-radius:11pt}
+    .quote{margin-top:calc(12pt * var(--pgap)); padding-left:14pt}
+    .quote p{font-size:11.5pt}
+    .refs{margin-top:calc(10pt * var(--pgap)); gap:calc(5pt * var(--pgap))}
+    .refs li{font-size:9pt; padding-left:22pt}
+    .foot{margin-top:calc(20pt * var(--pgap)); padding-top:10pt; font-size:9pt}
+
+    .card,.stat,.callout,.tw,.kv,.summary{box-shadow:none}
+    .stp::before{box-shadow:0 0 0 3pt #fff}
+    .doc a{color:var(--ink); border-bottom:none}
+  }
+</style>
+</head>
+<body>
+  <div class="progress"><i id="bar"></i></div>
+  <div class="tools">
+    <button id="print" title="인쇄 대화상자에서 '머리글 및 바닥글'을 끄고, '배경 그래픽'을 켜세요">PDF · 인쇄</button>
+    <button id="top">맨 위로</button>
+  </div>
+
+  <!-- 브라우저가 인쇄 시 덧찍는 날짜·제목·주소는 CSS로 끌 수 없다. 사용자가 직접 꺼야 하므로
+       인쇄 버튼을 누르면 이 안내를 반드시 보게 한다. 인쇄물에는 나오지 않는다. -->
+  <div class="pnote" id="pnote">
+    <div class="pbox">
+      <div class="ck">인쇄 전 확인</div>
+      <p>인쇄 대화상자에서 <b>'머리글 및 바닥글'을 끄고</b>, <b>'배경 그래픽'을 켜세요.</b> 용지는 <b>A4</b>.</p>
+      <p>머리글/바닥글을 켜 두면 종이 위쪽에 <b>날짜와 문서 제목</b>이, 아래쪽에 <b>file:// 주소</b>가 함께 찍힙니다.
+         이건 브라우저가 얹는 것이라 문서 쪽에서는 막을 수 없습니다.</p>
+      <p>같은 폴더에 있는 <b>PDF 파일</b>에는 이 문제가 없습니다. 그냥 그 PDF를 쓰셔도 됩니다.</p>
+      <div class="pbtns"><button id="pcancel">닫기</button><button id="pgo">인쇄 계속</button></div>
+    </div>
+  </div>
+
+  <div class="wrap">
+    <!-- 목차는 JS가 .sec[data-toc]에서 자동 생성합니다. 손댈 필요 없음. -->
+    <nav class="toc"><div class="tk">CONTENTS<b id="tocpos"></b></div><div id="tocList"></div></nav>
+
+    <main class="doc">
+
+      <!-- =================== 표지 =================== -->
+      <header class="rhead">
+        <div class="eyebrow" data-anim style="--d:0"><b>진단 보고서</b><span class="en">· REVIEW</span></div>
+        <h1 data-anim style="--d:1">HTML 스킬 진단과<br><span class="mark">기준 스타일 재설계</span></h1>
+        <p class="sub" data-anim style="--d:2">두 스킬은 인쇄 규칙과 예외 기록에서 이미 드물게 좋다. 문제는 <b>스타일을 바꿀 수 없는 구조</b>와, 판단 규칙과 CSS 해설이 한 파일에 뒤섞인 분량이다.</p>
+        <dl class="meta" data-anim style="--d:3">
+          <div><dt>작성</dt><dd>박상정</dd></div>
+          <div><dt>일자</dt><dd>2026-08-27</dd></div>
+          <div><dt>대상</dt><dd>본인</dd></div>
+          <div><dt>범위</dt><dd>스킬 2개 · 파일 7개</dd></div>
+        </dl>
+      </header>
+
+      <!-- =================== 핵심 요약 =================== -->
+      <div class="summary" data-anim>
+        <div class="sk">핵심 요약</div>
+        <h2>고칠 것은 규칙이 아니라, 규칙이 담긴 구조다</h2>
+        <p><b>규칙 자체는 손댈 것이 거의 없다.</b> 인쇄 우선순위표, 실측 스크립트, 자기 검증의 사각지대를 스스로 밝힌 문장 — 이 셋은 실제로 인쇄해 보고 깨져 본 뒤에야 쓸 수 있는 종류의 문장이고, 다시 만들 수 없다.</p>
+        <p>문제는 그 규칙이 놓인 자리다. 색 이름이 네 곳에 흩어져 있어 <b>팔레트 하나를 바꾸려면 네 번 고쳐야 하고</b>, 판단이 필요한 규칙과 CSS 해설이 한 파일에 섞여 호출마다 3,534단어가 통째로 올라온다.</p>
+        <ul class="pts">
+          <li><b>색을 토큰으로 분리한다.</b> 스킬 본문에서 색 이름을 지우면 스타일 교체가 파일 하나 교체가 된다.</li>
+          <li><b>SKILL.md에는 판단만 남긴다.</b> 간격 사다리·인쇄 CSS 해설은 레퍼런스 파일로 내린다.</li>
+          <li><b>슬라이드에도 실측기를 붙인다.</b> 지금은 넘침을 눈으로만 본다.</li>
+        </ul>
+      </div>
+
+      <!-- =================== 01 =================== -->
+      <section class="sec" id="s1" data-toc="진단 범위" style="--c:var(--a1); --ct:var(--a1t); --bgc:var(--a1b)">
+        <div class="sech" data-n="01">
+          <div class="no" data-anim style="--d:0">01 · SCOPE</div>
+          <h2 data-anim style="--d:1">무엇을 읽고 판단했는가</h2>
+          <p class="lead" data-anim style="--d:2">스킬 네 개가 든 폴더에서 HTML 관련 두 개를 열었다. 아래 평가의 근거는 전부 이 일곱 개 파일이며, 그 밖의 것은 보지 않았다.</p>
+        </div>
+
+        <p>먼저 이 진단이 <b>무엇을 보지 않았는지</b> 밝힌다. 판단은 파일을 읽어서만 했다. 에이전트에게 이 스킬을 쥐여 주고 실제로 보고서를 만들게 한 뒤 결과물을 채점하는 시험은 하지 않았다. 그러므로 아래는 <b>문서로서의 평가</b>이고, 산출물 품질의 측정이 아니다. 스킬이 실제로 지켜지는지는 별도의 시험이 필요하다.</p>
+
+        <div class="figw" data-anim>
+          <div class="tw">
+            <table>
+              <thead><tr><th>파일</th><th class="num">줄</th><th>맡은 일</th></tr></thead>
+              <tbody>
+                <tr><td>html-report/SKILL.md</td><td class="num">238</td><td>보고서 작성 절차·인쇄 규칙·검증 체크리스트</td></tr>
+                <tr><td>html-report/template.html</td><td class="num">647</td><td>CSS·목차 JS·인쇄 규칙이 든 뼈대</td></tr>
+                <tr><td>html-report/components.md</td><td class="num">218</td><td>컴포넌트 복붙 스니펫</td></tr>
+                <tr><td>html-report/printcheck.ps1</td><td class="num">143</td><td>A4 실측기 겸 PDF 생성기</td></tr>
+                <tr><td>html-slides/SKILL.md</td><td class="num">83</td><td>슬라이드 작성 절차</td></tr>
+                <tr><td>html-slides/template.html</td><td class="num">481</td><td>1280×720 캔버스 뼈대</td></tr>
+                <tr><td>html-slides/components.md</td><td class="num">175</td><td>슬라이드 컴포넌트 스니펫</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="cap">2026-08-27 기준. 두 스킬은 디렉터리 스코프로 걸려 있어 해당 폴더 아래 파일을 다룰 때만 목록에 뜬다.</p>
+        </div>
+      </section>
+
+      <!-- =================== 02 =================== -->
+      <section class="sec" id="s2" data-toc="이미 좋은 것" style="--c:var(--a2); --ct:var(--a2t); --bgc:var(--a2b)">
+        <div class="sech" data-n="02">
+          <div class="no" data-anim style="--d:0">02 · STRENGTH</div>
+          <h2 data-anim style="--d:1">이미 드물게 좋은 세 가지</h2>
+          <p class="lead" data-anim style="--d:2">대부분의 문서 생성 스킬은 "보기 좋게 만들어라"에서 끝난다. 이 스킬은 그 지점을 넘어서 있고, 그 부분은 재설계에서 한 줄도 버리지 않는다.</p>
+        </div>
+
+        <div class="cards three" data-anim>
+          <div class="card" style="--c:var(--a1); --ct:var(--a1t)">
+            <div class="idx">01</div>
+            <h3>실측 루프</h3>
+            <p>헤드리스 인쇄로 페이지별 채움률과 배치 결함을 재는 스크립트를 동봉했다. 결과물을 <b>기계가 판정</b>한다.</p>
+          </div>
+          <div class="card" style="--c:var(--a2); --ct:var(--a2t)">
+            <div class="idx">02</div>
+            <h3>우선순위표</h3>
+            <p>규칙 일곱 개에 순위를 매겨, 충돌할 때 <b>무엇을 포기하는지</b>까지 적었다. 이걸 적은 스킬은 거의 없다.</p>
+          </div>
+          <div class="card" style="--c:var(--a3); --ct:var(--a3t)">
+            <div class="idx">03</div>
+            <h3>가짜 통과 경고</h3>
+            <p>실측기가 채움률만 본다는 사실을 스스로 밝히고, 그 통과를 <b>가짜라고</b> 못 박았다.</p>
+          </div>
+        </div>
+
+        <p>두 번째도 흔하지 않다. 대부분의 규칙 목록은 <b>모든 항목이 동등하게 중요한 척</b>한다. 그러면 규칙이 서로 부딪히는 순간 판단이 멈춘다. 이 스킬은 일곱 개 규칙에 순위를 매기고, 채움률을 <b>가장 낮은 자리</b>에 두어 "여백이 남아도 장 경계는 깨지 않는다"를 명시했다. 지면이 부족할 때 무엇을 먼저 버릴지가 적혀 있는 셈이다.</p>
+
+        <p>세 번째가 특히 값어치 있다. 검증 도구를 만든 사람이 그 도구의 사각지대를 같은 문서에 적어 두는 일은 흔치 않다. 없으면 다음 에이전트는 <b>통과 도장을 근거로 잘못된 문서를 내보낸다.</b></p>
+
+        <div class="callout tone" data-anim>
+          <div class="ck">보존</div>
+          <p>실측 숫자도 마찬가지다. 여백 배율을 0.6에서 0.55로 내렸을 때 자투리 페이지가 사라졌다는 기록, 특정 선택자를 걸면 앞 페이지가 크게 비는 이유와 그 증상 판별법 — 전부 실제로 깨져 본 뒤에야 나오는 문장이다. <b>재설계로 이 기록을 잃으면 손해가 이익보다 크다.</b></p>
+        </div>
+      </section>
+
+      <!-- =================== 03 =================== -->
+      <section class="sec" id="s3" data-toc="고칠 일곱 가지" style="--c:var(--a3); --ct:var(--a3t); --bgc:var(--a3b)">
+        <div class="sech" data-n="03">
+          <div class="no" data-anim style="--d:0">03 · FINDINGS</div>
+          <h2 data-anim style="--d:1">고쳐야 할 일곱 가지</h2>
+          <p class="lead" data-anim style="--d:2">아래 순서는 심각도 순이 아니라 <b>고치는 순서</b>다. 위쪽을 고치면 아래쪽 일부가 저절로 정리된다.</p>
+        </div>
+
+        <div class="figw" data-anim>
+          <div class="tw">
+            <table>
+              <thead><tr><th>항목</th><th>지금</th><th>왜 문제인가</th></tr></thead>
+              <tbody>
+                <tr><td class="wrap">색 이름이 흩어짐</td><td>네 곳에 중복</td><td>팔레트 하나 바꾸려면 네 번 고친다. 스타일 교체가 리팩터링이 된다</td></tr>
+                <tr><td class="wrap">본문 분량</td><td>3,534단어</td><td>호출마다 통째로 올라온다. 판단 규칙이 CSS 해설에 묻힌다</td></tr>
+                <tr><td class="wrap">description</td><td>결과물 사양 서술</td><td>언제 쓰는가가 아니라 무엇을 만드는가를 적으면, 본문을 안 읽고 요약만 보고 일하는 지름길이 생긴다</td></tr>
+                <tr><td class="wrap">같은 금지 반복</td><td>한 규칙이 7회</td><td>반복은 규율 규칙의 정당한 기법이지만, 지금은 같은 문장을 늘려 쓴 쪽에 가깝다</td></tr>
+                <tr><td class="wrap">슬라이드 검증</td><td>체크 5개</td><td>보고서는 15개인데 슬라이드는 넘침을 눈으로만 본다. 기계로 잴 수 있는 항목이다</td></tr>
+                <tr><td class="wrap">깨진 참조</td><td>기준 파일 없음</td><td>슬라이드 스킬이 가리키는 원본 디자인 파일이 저장소에 없다. 기준이 사라진 채 사본만 남았다</td></tr>
+                <tr><td class="wrap">토큰 중복</td><td>두 템플릿에 복붙</td><td>한쪽만 고치면 두 스킬의 룩앤필이 조용히 갈라진다</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="cap">분량·횟수는 실제 파일에서 센 값이다.</p>
+        </div>
+
+        <p>여섯 번째와 일곱 번째는 같은 병의 다른 증상이다. <b>디자인의 원본이 어디인지 정해져 있지 않다.</b> 원본이 없으니 사본이 갈라지고, 갈라진 사본을 기준 삼아 다음 사본이 만들어진다.</p>
+      </section>
+
+      <!-- =================== 04 =================== -->
+      <section class="sec" id="s4" data-toc="바꿀 수 없던 이유" style="--c:var(--a1); --ct:var(--a1t); --bgc:var(--a1b)">
+        <div class="sech" data-n="04">
+          <div class="no" data-anim style="--d:0">04 · CAUSE</div>
+          <h2 data-anim style="--d:1">스타일을 바꿀 수 없던 이유</h2>
+          <p class="lead" data-anim style="--d:2">"색만 바꾸면 되지 않나"가 안 되는 이유는 취향이 아니라 배선이다. 색 이름이 네 개의 다른 층에 동시에 박혀 있다.</p>
+        </div>
+
+        <div class="stats" data-anim>
+          <div class="stat" style="--c:var(--a1); --ct:var(--a1t)">
+            <div class="sl">색 이름 등장</div>
+            <div class="sv">77<small>회</small></div>
+            <div class="sd">템플릿 한 파일 안에서만</div>
+          </div>
+          <div class="stat" style="--c:var(--a2); --ct:var(--a2t)">
+            <div class="sl">본문 분량 차이</div>
+            <div class="sv">5.7<small>배</small></div>
+            <div class="sd">보고서 3,534 vs 슬라이드 620단어</div>
+          </div>
+          <div class="stat" style="--c:var(--a3); --ct:var(--a3t)">
+            <div class="sl">검증 체크</div>
+            <div class="sv">15<small>:5</small></div>
+            <div class="sd">보고서 대 슬라이드</div>
+          </div>
+        </div>
+
+        <p>색 이름이 사는 네 곳은 아래와 같다. 어느 하나만 고치면 나머지 세 곳이 옛 색을 계속 주장한다.</p>
+
+        <div class="code" data-anim>
+<pre>1. template.html  :root      --azure:#2E6BFF …        ← 정의
+2. template.html  규칙 본문   color:var(--azureT)       ← 사용
+3. components.md  스니펫      style="--c:var(--azure)"  ← 복붙 원본
+4. SKILL.md       본문 산문   "azure → violet → amber"  ← 지시</pre>
+        </div>
+
+        <div class="callout" style="--c:var(--risk); --ct:var(--riskT); --bgc:var(--riskB)" data-anim>
+          <div class="ck">RISK</div>
+          <p>이번에 손으로 네 곳을 맞춰도 <b>다음에 또 바꾸고 싶어지면 같은 일을 반복한다.</b> 고칠 대상은 색이 아니라, 색이 네 곳에 있다는 사실이다.</p>
+        </div>
+      </section>
+
+      <!-- =================== 05 =================== -->
+      <section class="sec" id="s5" data-toc="새 기준 스타일" style="--c:var(--a2); --ct:var(--a2t); --bgc:var(--a2b)">
+        <div class="sech" data-n="05">
+          <div class="no" data-anim style="--d:0">05 · SYSTEM</div>
+          <h2 data-anim style="--d:1">새 기준 스타일</h2>
+          <p class="lead" data-anim style="--d:2">파이낸스 문서의 문법 위에 절제된 장식을 얹는다. 지금 읽고 있는 이 문서가 그 기준이다.</p>
+        </div>
+
+        <div class="kv" data-anim>
+          <div class="row"><div class="k">바탕</div><div class="d">순백. 그라데이션 면을 쓰지 않는다 — <b>인쇄에서 글자가 사라지는 사고를 배선 단계에서 제거</b>하기 위해서다.</div></div>
+          <div class="row"><div class="k">서체</div><div class="d">Pretendard 단일. 숫자는 문서 전체에서 자릿수를 맞춘다(<span class="mono">tabular-nums</span>).</div></div>
+          <div class="row"><div class="k">밀도</div><div class="d">본문 폭과 간격 사다리는 기존 값을 그대로 승계한다. 여기는 이미 실측으로 맞춰 둔 곳이다.</div></div>
+          <div class="row"><div class="k">액센트</div><div class="d">블루 · 인디고 · 앰버 세 색이 장 단위로 순환한다. 경고는 별도 색으로 분리해 순환에서 뺀다.</div></div>
+          <div class="row"><div class="k">장식</div><div class="d">번호 배지와 규칙선만 쓴다. 그라데이션 막대·테크 그리드·그림자 상자는 쓰지 않는다.</div></div>
+        </div>
+
+        <p>장식 규칙에는 하나의 원칙이 있다. <b>한 요소의 색은 한 곳에서만 드러낸다.</b> 장의 색은 번호 배지가 지고, 제목에 밑줄을 겹치지 않는다. 지표의 색은 숫자가 지고, 상단 막대를 겹치지 않는다. 겹치면 문서가 화려해지는 것이 아니라 <b>위계가 무너진다</b> — 무엇이 중요한지 눈이 판단할 근거를 잃는다.</p>
+
+        <div class="figw" data-anim>
+          <div class="tw">
+            <table>
+              <thead><tr><th>토큰</th><th>역할</th><th>바꿔도 되는가</th></tr></thead>
+              <tbody>
+                <tr><td class="mono">--a1 / a2 / a3</td><td>장 순환 액센트</td><td>테마 파일에서 교체</td></tr>
+                <tr><td class="mono">--risk</td><td>경고 전용. 순환에 넣지 않는다</td><td>교체 가능</td></tr>
+                <tr><td class="mono">--rule</td><td>표·요약 위의 굵은 규칙선</td><td>교체 가능</td></tr>
+                <tr><td class="mono">--ink / body / muted</td><td>글자 위계 3단</td><td>대비를 확인하고 교체</td></tr>
+                <tr><td class="mono">--pgap / --pfs</td><td>인쇄 여백·크기 손잡이</td><td><b>실측 없이 바꾸지 않는다</b></td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="cap">색 리터럴은 이 토큰 블록 밖 어디에도 쓰지 않는다. 이것이 스타일 교체를 파일 하나 교체로 만드는 조건이다.</p>
+        </div>
+      </section>
+
+      <!-- =================== 06 =================== -->
+      <section class="sec" id="s6" data-toc="이행 절차" style="--c:var(--a3); --ct:var(--a3t); --bgc:var(--a3b)">
+        <div class="sech" data-n="06">
+          <div class="no" data-anim style="--d:0">06 · PLAN</div>
+          <h2 data-anim style="--d:1">여기서 스킬까지 가는 길</h2>
+          <p class="lead" data-anim style="--d:2">이 문서가 통과하면 나머지는 기계적이다. 순서를 지키는 것이 중요하다 — 뒤 단계가 앞 단계의 실측 결과를 쓴다.</p>
+        </div>
+
+        <div class="steps" data-anim>
+          <div class="stp" style="--c:var(--a1); --ct:var(--a1t)">
+            <div class="sn">STEP 01</div>
+            <h3>기준 문서 확정</h3>
+            <p>지금 이 문서를 눈으로 검수하고 세부를 조정한다. 이 시점의 파일이 이후 모든 판단의 원본이 된다.</p>
+          </div>
+          <div class="stp" style="--c:var(--a2); --ct:var(--a2t)">
+            <div class="sn">STEP 02</div>
+            <h3>인쇄 실측</h3>
+            <p>실측기를 돌려 페이지 수와 채움률을 잰다. 여백 배율의 정상 범위를 새로 재서 적어 둔다 — 옛 숫자는 옛 스킨의 것이다.</p>
+          </div>
+          <div class="stp" style="--c:var(--a3); --ct:var(--a3t)">
+            <div class="sn">STEP 03</div>
+            <h3>토큰 분리</h3>
+            <p>확정된 토큰 블록을 테마 파일로 떼어내고, 두 템플릿이 같은 파일을 참조하게 한다. 복붙된 중복이 여기서 사라진다.</p>
+          </div>
+          <div class="stp" style="--c:var(--a1); --ct:var(--a1t)">
+            <div class="sn">STEP 04</div>
+            <h3>스킬 본문 정리</h3>
+            <p>색 이름을 걷어내고, 간격 사다리와 인쇄 CSS 해설을 레퍼런스로 내린다. 본문에는 판단이 필요한 규칙만 남긴다.</p>
+          </div>
+          <div class="stp" style="--c:var(--a2); --ct:var(--a2t)">
+            <div class="sn">STEP 05</div>
+            <h3>슬라이드 맞추기</h3>
+            <p>같은 토큰을 슬라이드에 입히고, 넘침 실측기를 붙인다. 깨진 원본 참조를 이 기준 문서로 바꾼다.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- =================== 07 =================== -->
+      <section class="sec" id="s7" data-toc="결론" style="--c:var(--a1); --ct:var(--a1t); --bgc:var(--a1b)">
+        <div class="sech" data-n="07">
+          <div class="no" data-anim style="--d:0">07 · CLOSE</div>
+          <h2 data-anim style="--d:1">결론과 권고</h2>
+          <p class="lead" data-anim style="--d:2">스킬을 다시 쓰는 일이 아니라, 스킬이 쥐고 있던 것을 <b>제자리로 옮기는</b> 일이다.</p>
+        </div>
+
+        <ol class="nums" data-anim>
+          <li><b>규칙은 그대로 둔다.</b> 인쇄 우선순위, 실측 루프, 사각지대 고지는 손대지 않는다. 이 부분은 이미 값이 나가 있다.</li>
+          <li><b>색은 토큰으로 내린다.</b> 네 곳에 흩어진 색 이름을 한 파일로 모으고, 산문에서 색을 부르지 않는다.</li>
+          <li><b>분량은 레퍼런스로 내린다.</b> SKILL.md에는 판단이 갈리는 것만 남긴다. CSS가 이미 강제하는 것은 설명하지 않는다.</li>
+          <li><b>검증은 양쪽에 붙인다.</b> 슬라이드에도 실측기를 준다. 눈으로 보는 검증은 검증이 아니다.</li>
+        </ol>
+
+        <div class="banner" data-anim>기준이 없으면 사본이 갈라진다. <b>이 문서가 원본이다.</b></div>
+
+        <h3 data-anim>참고</h3>
+        <ol class="refs" data-anim>
+          <li>html-report / html-slides — SKILL.md · template.html · components.md · printcheck.ps1 (진단 대상 원본)</li>
+          <li>스타일_시안.html — 팔레트·장식 3안 비교. 이 문서는 C안 장식에 A안 색을 얹은 조합이다</li>
+          <li>work/CLAUDE.md — 스킬과 방법론의 구분 기준, 예외 기록 원칙</li>
+        </ol>
+      </section>
+
+      <footer class="foot">
+        <div><b>HTML 스킬 진단과 기준 스타일 재설계 (B)</b> · 박상정</div>
+        <div>2026-08-27</div>
+      </footer>
+
+    </main>
+  </div>
+
+<script>
+  // ---- 목차 자동 생성 + 스크롤 스파이 ----
+  const secs=[...document.querySelectorAll('.sec[data-toc]')];
+  const list=document.getElementById('tocList');
+  const tocPos=document.getElementById('tocpos');
+  const pad=n=>String(n).padStart(2,'0');
+  const links=secs.map((s,k)=>{
+    if(!s.id) s.id='sec'+(k+1);
+    const a=document.createElement('a');
+    a.href='#'+s.id;
+    a.innerHTML='<span class="tn">'+pad(k+1)+'</span><span>'+s.dataset.toc+'</span>';
+    list.appendChild(a);
+    return a;
+  });
+  const spy=new IntersectionObserver(es=>{
+    es.forEach(e=>{
+      if(!e.isIntersecting) return;
+      const k=secs.indexOf(e.target);
+      links.forEach((a,j)=>a.classList.toggle('on',j===k));
+      tocPos.textContent=pad(k+1)+' / '+pad(secs.length);
+    });
+  },{rootMargin:'-15% 0px -70% 0px'});
+  secs.forEach(s=>spy.observe(s));
+
+  // ---- 스크롤 진행 바 ----
+  const bar=document.getElementById('bar');
+  const onScroll=()=>{
+    const h=document.documentElement.scrollHeight-innerHeight;
+    bar.style.width=(h>0?Math.min(100,scrollY/h*100):100)+'%';
+  };
+  addEventListener('scroll',onScroll,{passive:true});
+  addEventListener('resize',onScroll);
+  onScroll();
+
+  // ---- 등장 애니메이션 ----
+  const rev=new IntersectionObserver(es=>{
+    es.forEach(e=>{ if(e.isIntersecting){ e.target.classList.add('in'); rev.unobserve(e.target); } });
+  },{rootMargin:'0px 0px -8% 0px'});
+  document.querySelectorAll('[data-anim]').forEach(el=>rev.observe(el));
+
+  // ---- 도구 버튼 ----
+  const pnote=document.getElementById('pnote');
+  document.getElementById('print').onclick=()=>pnote.classList.add('on');
+  document.getElementById('pcancel').onclick=()=>pnote.classList.remove('on');
+  document.getElementById('pgo').onclick=()=>{ pnote.classList.remove('on'); setTimeout(()=>print(),60); };
+  pnote.onclick=e=>{ if(e.target===pnote) pnote.classList.remove('on'); };
+  document.getElementById('top').onclick=()=>scrollTo({top:0,behavior:'smooth'});
+</script>
+</body>
+</html>

@@ -1,0 +1,518 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{DECK_TITLE}}</title>
+<link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css">
+<style>
+  /* ============================================================
+     테마 토큰 — 보고서(기준_보고서_B)와 같은 값을 쓴다.
+     아래 어느 규칙에도 색 리터럴을 직접 쓰지 않는다.
+     ============================================================ */
+  :root{
+    --bg:#FFFFFF;       /* 바탕은 순백. 그라데이션을 쓰지 않는다 */
+    --card:#FFFFFF;
+    --tint:#F7F9FC;     /* 면을 아주 옅게 눕힐 때만 */
+    --ink:#0A1628;      /* 제목 */
+    --body:#39445A;     /* 본문 */
+    --muted:#6B7688;    /* 보조 */
+    --faint:#9AA3B2;    /* 라벨 */
+    --line:#E3E7EE;
+    --line2:#F1F3F7;
+    --rule:#0A1628;     /* 표·요약 위에 긋는 굵은 규칙선 */
+
+    --a1:#1E50D8; --a1t:#1741B4; --a1b:#EAF0FF;   /* 블루 */
+    --a2:#4338CA; --a2t:#332BA6; --a2b:#EDEBFD;   /* 인디고 — 순환에서 초록을 뺀다 */
+    --a3:#C2761A; --a3t:#96590F; --a3b:#FBF1E1;   /* 앰버 */
+    --risk:#D4453B; --riskT:#B5322A; --riskB:#FDECEA;
+
+    --sh:0 1px 2px rgba(10,22,40,.04);
+    --sh-sm:0 1px 2px rgba(10,22,40,.035);
+  }
+  *{box-sizing:border-box; margin:0; padding:0}
+  html,body{height:100%}
+  body{
+    font-family:'Pretendard Variable',Pretendard,-apple-system,'Apple SD Gothic Neo','Malgun Gothic','Segoe UI',sans-serif;
+    background:var(--bg);
+    color:var(--body);
+    font-variant-numeric:tabular-nums;
+    overflow:hidden;
+    -webkit-font-smoothing:antialiased;
+    text-rendering:optimizeLegibility;
+  }
+
+  /* ---- stage & scaling ---- */
+  .stage{position:fixed; inset:0}
+  .deck{position:absolute; left:50%; top:50%; width:1280px; height:720px;
+    transform:translate(-50%,-50%); transform-origin:center center}
+
+  .slide{position:absolute; inset:0; padding:86px 96px 92px;
+    display:flex; flex-direction:column;
+    opacity:0; visibility:hidden; transition:opacity .5s ease; overflow:hidden}
+  .slide.active{opacity:1; visibility:visible}
+  /* 배경 장식 없음 — 장식은 고스트 번호와 규칙선이 전담한다.
+     opacity·mask·그라데이션 텍스트는 인쇄에서 사고를 낸다. */
+
+  /* ---- shared type ---- */
+  /* inline-block 으로 둔다(inline-flex + border-radius 는 별도 페인트 레이어를 만든다) */
+  /* .slide 는 flex column 이라 직계 자식은 기본이 stretch 다.
+     align-self 를 주지 않으면 표지의 배지가 슬라이드 폭 전체로 늘어난다. */
+  .eyebrow{display:inline-block; align-self:flex-start; padding:8px 15px; border-radius:8px;
+    background:var(--bgc,var(--a1b)); font-size:14px; font-weight:800; letter-spacing:.14em;
+    color:var(--ct,var(--a1t))}
+  .eyebrow .dot{display:none}
+  .eyebrow b{color:inherit; font-weight:800}
+  .eyebrow .en{color:var(--muted); font-weight:800; font-size:14px; letter-spacing:.14em; margin-left:9px}
+
+  .title{font-weight:800; letter-spacing:-.022em; line-height:1.08; color:var(--ink)}
+  .sub{color:var(--muted); font-weight:450}
+
+  /* 그라데이션 텍스트는 인쇄에서 통째로 사라진다 */
+  .mark{white-space:nowrap; color:var(--a1t)}
+
+  /* ---- entrance anim ---- */
+  [data-anim]{opacity:0; transform:translateY(18px)}
+  .slide.active [data-anim]{animation:rise .72s cubic-bezier(.2,.72,.18,1) both;
+    animation-delay:calc(var(--d,0) * .085s)}
+  @keyframes rise{to{opacity:1; transform:none}}
+
+  /* =================== SLIDE — cover / divider =================== */
+  .cover{justify-content:center}
+  .cover .eyebrow{margin-bottom:30px}
+  .cover h1{font-size:78px; letter-spacing:-.03em; line-height:1.04}
+  .cover .sub{font-size:24px; margin-top:26px; max-width:940px; line-height:1.5}
+  .cover .sub b{color:var(--ink); font-weight:700}
+  .legend{display:flex; gap:12px; margin-top:52px; align-items:center; flex-wrap:wrap}
+  .pill{display:inline-flex; align-items:center; gap:9px; padding:11px 18px; border-radius:999px;
+    font-size:16px; font-weight:600; color:var(--ink);
+    background:var(--card); border:1px solid var(--line); box-shadow:var(--sh-sm)}
+  .pill i{width:9px; height:9px; border-radius:50%; display:inline-block}
+  .pill.code i{background:var(--a1)}
+  .pill.ai   i{background:var(--a2)}
+  .pill.human i{background:var(--a3)}
+  .legend .arw{color:var(--faint); font-weight:500}
+
+  /* =================== shared header for content slides =================== */
+  /* 장 번호는 왼쪽 여백에 큰 고스트 숫자로 깐다(보고서와 같은 장치).
+     opacity 대신 옅은 단색(--bgc)으로 채운다. */
+  .head{margin-bottom:36px; position:relative}
+  .head[data-n]::before{content:attr(data-n); position:absolute; left:-90px; top:-14px; z-index:0;
+    width:68px; text-align:right; white-space:nowrap;
+    font-size:62px; font-weight:800; letter-spacing:-.05em; line-height:1;
+    color:var(--bgc,var(--a1b)); pointer-events:none; user-select:none}
+  .head > *{position:relative; z-index:1}
+  .head .title{font-size:44px; margin-top:18px}
+  .head .sub{font-size:19px; margin-top:14px; max-width:1000px}
+
+  /* =================== cards =================== */
+  .cards{display:grid; grid-template-columns:repeat(3,1fr); gap:22px; flex:1}
+  .cards.two{grid-template-columns:repeat(2,1fr)}
+  .card{position:relative; padding:28px 26px 24px; border-radius:14px;
+    background:var(--card); border:1px solid var(--line); border-top:3px solid var(--c,var(--a1));
+    overflow:hidden; display:flex; flex-direction:column}
+  .card .idx{font-size:14px; font-weight:800; letter-spacing:.14em; color:var(--ct,var(--a1t))}
+  .card h3{font-size:26px; font-weight:750; margin-top:16px; letter-spacing:-.01em; color:var(--ink)}
+  .card p{font-size:17px; line-height:1.6; color:var(--body); margin-top:13px}
+  .card p b{color:var(--ink); font-weight:700}
+  .card .tag{margin-top:auto; padding-top:16px; font-size:14px; color:var(--faint)}
+  /* service comparison list */
+  .card .svc{margin-top:15px; list-style:none; display:flex; flex-direction:column; flex:1; justify-content:flex-start}
+  .card .svc li{display:flex; align-items:baseline; gap:12px; padding:11px 0;
+    border-top:1px solid var(--line2); font-size:17px; font-weight:750; color:var(--ink); letter-spacing:-.01em}
+  .card .svc li:first-child{border-top:none}
+  .card .svc .k{flex:0 0 36px; font-size:11.5px; font-weight:800; letter-spacing:.02em; color:var(--ct,var(--a1t))}
+  .card .svc li.ext{margin-top:3px; border-top:1px dashed var(--line); color:var(--muted); font-weight:650; font-size:16px}
+  .card .svc li.ext .k{color:var(--faint)}
+
+  /* =================== flow (3 roles + banner) =================== */
+  .flow{display:grid; grid-template-columns:1fr 52px 1fr 52px 1fr; align-items:stretch; flex:1; margin-bottom:24px}
+  .role{position:relative; padding:26px 24px; border-radius:14px; overflow:hidden;
+    background:var(--card); border:1px solid var(--line); border-top:3px solid var(--rc,var(--a1));
+    display:flex; flex-direction:column}
+  .role .lab{display:inline-flex; align-items:center; gap:10px; font-size:15px; font-weight:800; letter-spacing:.10em; color:var(--rcT)}
+  .role .lab i{width:10px;height:10px;border-radius:50%;background:var(--rc)}
+  .role h3{font-size:28px; font-weight:800; margin-top:15px; letter-spacing:-.015em; color:var(--ink)}
+  .role .items{margin-top:13px; font-size:17.5px; color:var(--body); line-height:1.66}
+  .role .note{margin-top:auto; padding-top:16px; font-size:14px; color:var(--muted)}
+  .arrow{align-self:center; justify-self:center; font-size:30px; color:var(--faint)}
+  .banner{position:relative; border-radius:14px; padding:24px 32px; text-align:left; color:#fff;
+    background:var(--rule); border:0; font-size:24px; font-weight:750; letter-spacing:-.012em}
+  .banner b{color:#fff; font-weight:800}
+
+  /* =================== map (horizontal roadmap) =================== */
+  .map{display:flex; align-items:center; gap:0; flex:1}
+  .step{flex:1 1 0; min-width:0; position:relative; padding:20px 16px 18px; border-radius:12px;
+    background:var(--card); border:1px solid var(--line); border-top:3px solid var(--sc,var(--a1));
+    display:flex; flex-direction:column; overflow:hidden}
+  .step .n{font-size:13px; font-weight:800; letter-spacing:.14em; color:var(--sct,var(--a1t))}
+  .step h3{font-size:19px; font-weight:750; margin-top:12px; letter-spacing:-.012em; color:var(--ink)}
+  .step p{font-size:12.5px; color:var(--muted); margin-top:8px; line-height:1.4}
+  .marw{flex:0 0 26px; display:flex; align-items:center; justify-content:center; font-size:18px; color:var(--faint)}
+
+  .rail{margin-top:22px; display:flex; align-items:center; justify-content:space-between; gap:20px;
+    border-radius:12px; padding:18px 26px;
+    background:var(--tint); border:1px solid var(--line2); border-left:3px solid var(--a1)}
+  .rail .msg{font-size:19px; font-weight:750; color:var(--ink); letter-spacing:-.01em}
+  .rail .msg b{color:var(--a1t)}
+  .rail .tools{display:flex; gap:10px; flex-wrap:wrap; justify-content:flex-end}
+  .tool{display:inline-flex; align-items:center; gap:9px; padding:10px 16px; border-radius:999px;
+    background:var(--card); border:1px solid var(--line); box-shadow:var(--sh-sm);
+    font-size:14px; font-weight:600; color:var(--ink); white-space:nowrap}
+  .tool i{width:8px; height:8px; border-radius:50%; background:var(--faint)}
+
+  /* =================== duo panels =================== */
+  .mono{font-family:'SF Mono',ui-monospace,'Cascadia Code',Consolas,monospace; font-weight:700}
+  .duo{display:grid; grid-template-columns:1fr 1fr; gap:22px; flex:1}
+  .panel{position:relative; border-radius:14px; background:var(--card); border:1px solid var(--line);
+    border-top:3px solid var(--pc,var(--a1));
+    padding:26px 28px 24px; display:flex; flex-direction:column; overflow:hidden}
+  .panel .pk{font-size:12.5px; font-weight:800; letter-spacing:.14em; color:var(--pct,var(--a1t))}
+  .panel > h3{font-size:23px; font-weight:800; margin-top:11px; letter-spacing:-.015em; color:var(--ink)}
+  .panel .txt{margin-top:13px; font-size:16.5px; line-height:1.6; color:var(--body)}
+  .panel .txt b{color:var(--ink); font-weight:700}
+  .pts{margin-top:15px; list-style:none; display:flex; flex-direction:column; gap:12px; flex:1; justify-content:center}
+  .pts li{position:relative; padding-left:21px; font-size:16.5px; line-height:1.5; color:var(--body)}
+  .pts li::before{content:''; position:absolute; left:2px; top:9px; width:7px; height:7px; border-radius:50%; background:var(--pc,var(--a1))}
+  .pts li b{color:var(--ink); font-weight:750}
+  .pts li .m{font-family:'SF Mono',ui-monospace,'Cascadia Code',Consolas,monospace; font-weight:700; color:var(--pct,var(--a1t)); font-size:15px}
+
+  /* usage callout */
+  .usage{margin-top:auto; border-radius:13px; padding:14px 16px; background:var(--pbg,var(--a1b))}
+  .usage .ut{font-size:12px; font-weight:800; letter-spacing:.1em; color:var(--pct,var(--a1t))}
+  .usage .uw{margin-top:10px; list-style:none; display:flex; flex-direction:column; gap:8px}
+  .usage .uw li{font-size:13.5px; line-height:1.4; color:var(--body)}
+  .usage .uw li b{color:var(--pct,var(--a1t)); font-weight:800; margin-right:4px}
+  .usage .uw li.off,.usage .uw li.off b{color:var(--faint)}
+
+  /* definition rows (glossary style) */
+  .deflist{margin-top:6px; display:flex; flex-direction:column; flex:1; justify-content:center}
+  .row{padding:15px 0; border-top:1px solid var(--line2)}
+  .row:first-child{border-top:none}
+  .row .t{display:flex; align-items:center; gap:9px; font-size:18px; font-weight:800; color:var(--ink)}
+  .row .t .c{font-size:15px; padding:3px 10px; border-radius:7px; background:var(--pbg,var(--a1b)); color:var(--pct,var(--a1t))}
+  .row .d{font-size:14.5px; color:var(--muted); line-height:1.55; margin-top:6px}
+
+  /* wide single panel */
+  .wide{flex:1; display:flex; min-height:0}
+  .wide .panel{flex:1}
+  .wide .deflist{justify-content:space-evenly}
+  .wide .deflist .row{display:flex; align-items:center; gap:22px; padding:14px 0}
+  .wide .deflist .row .cw{flex:0 0 128px}
+  .wide .deflist .row .c{display:inline-block; font-size:15px; font-weight:800; padding:3px 10px;
+    border-radius:7px; background:var(--pbg,var(--a1b)); color:var(--pct,var(--a1t))}
+  .wide .deflist .row .k{flex:0 0 116px; font-size:18px; font-weight:800; color:var(--ink)}
+  .wide .deflist .row .d{flex:1; margin-top:0; font-size:15px; color:var(--muted); line-height:1.55}
+
+  /* =================== agenda / 목차 =================== */
+  .agenda{flex:1; display:flex; flex-direction:column; justify-content:center}
+  .arow{position:relative; display:flex; align-items:center; gap:26px;
+    padding:17px 10px 17px 4px; border-top:1px solid var(--line2)}
+  .arow:first-child{border-top:none}
+  .arow .no{position:relative; font-size:30px; font-weight:800; line-height:1; letter-spacing:-.02em;
+    font-variant-numeric:tabular-nums; color:var(--act,var(--a1t)); min-width:52px; padding-left:16px}
+  .arow .no::before{content:''; position:absolute; left:0; top:50%; transform:translateY(-50%);
+    width:4px; height:26px; border-radius:4px; background:var(--ac,var(--a1))}
+  .arow .tx{flex:1; min-width:0; display:flex; align-items:baseline; gap:16px}
+  .arow .tx h3{font-size:23px; font-weight:750; color:var(--ink); letter-spacing:-.012em; white-space:nowrap}
+  .arow .tx p{font-size:14.5px; color:var(--muted); line-height:1.4}
+  .arow .en{font-size:11.5px; font-weight:700; letter-spacing:.14em; color:var(--faint); white-space:nowrap}
+
+  /* =================== chrome (fixed UI) =================== */
+  /* 진행바는 오른쪽 가장자리에 세로로 선다(내비게이션 레일과 같은 축). */
+  /* 내비게이션은 오른쪽에 세로로 모은다.
+     본문은 1280x720 캔버스 안에서 가로로 꽉 차므로, 조작부가 아래에 누우면
+     마지막 줄과 붙어 보인다. 옆으로 세우면 본문 흐름과 축이 갈린다. */
+  /* 좌하단이 읽는 자리이자 유일한 조작부다. 오른쪽 레일을 없애면서 둘을 합쳤다. */
+  .brandbar{position:fixed; left:30px; bottom:20px; z-index:20;
+    font-size:13.5px; font-weight:700; color:var(--muted)}
+  .brandbar span{color:var(--faint); font-weight:500}
+  /* 좌하단이 '어디쯤인가'를 통째로 진다 — 현재 부, 부 진행바, 전체 페이지.
+     오른쪽 레일은 없앴다. 조작은 키보드(←/→·↑/↓·F)와 스와이프로 한다. */
+  .brandbar .pnow{display:flex; align-items:baseline; gap:10px}
+  .brandbar .pnow b{color:var(--ink); font-weight:800; font-size:14.5px; letter-spacing:-.012em}
+  /* 부 진행바는 부 수만큼 칸으로 쪼갠다 — 지난 부는 꽉, 현재 부는 진행분만, 남은 부는 빈 칸.
+     한 요소가 '전체 몇 부 중 어디'와 '그 부 안에서 얼마나'를 동시에 진다.
+     이 바가 유일한 조작부다(오른쪽 레일을 없앴으므로). 칸을 누르면 그 부로 뛴다.
+     칸(i)은 16px 높이의 누를 자리, 눈에 보이는 3px 선은 그 안의 span 이다.
+     margin 은 선이 예전 자리에 그대로 앉도록 맞춘 값이다. */
+  .brandbar .pbar{display:flex; gap:4px; width:220px; margin-top:2px; margin-bottom:-6px}
+  .brandbar .pbar i{flex:1; height:16px; display:flex; align-items:center; cursor:pointer}
+  .brandbar .pbar span{display:block; width:100%; height:3px; border-radius:2px;
+    background:var(--line2); overflow:hidden; transition:height .18s}
+  .brandbar .pbar i:hover span{height:7px}
+  .brandbar .pbar b{display:block; height:100%; width:0; border-radius:2px; background:var(--a1);
+    transition:width .45s cubic-bezier(.2,.7,.2,1)}
+  /* 전체 진행은 여기 숫자가 진다 — 오른쪽 세로 진행바는 없앴다(같은 것을 두 번 그리지 않는다). */
+  .brandbar .dk{margin-top:8px; font-size:12.5px; font-weight:600; color:var(--faint)}
+  .brandbar .dk b{color:var(--muted); font-weight:800; letter-spacing:.03em;
+    font-variant-numeric:tabular-nums}
+  /* 부에 속하지 않는 장(표지·목차·마무리)에서는 부 '이름'만 접는다.
+     바는 남긴다 — 거기서도 눌러서 부로 뛸 수 있어야 하기 때문이다. */
+  .brandbar:not(.inpart) .pnow{visibility:hidden}
+
+  .hint{position:fixed; top:18px; right:24px; z-index:20; font-size:12.5px; color:var(--faint);
+    transition:opacity .6s}
+  .hint kbd{font-family:inherit; color:var(--muted); background:var(--card); border:1px solid var(--line);
+    border-radius:6px; padding:2px 7px; font-size:11.5px; box-shadow:var(--sh-sm)}
+
+  /* =================== print / PDF =================== */
+  @media print{
+    @page{size:1280px 720px; margin:0}
+    body{overflow:visible; background:var(--bg)}
+    .hint,.brandbar{display:none!important}
+    .stage{position:static}
+    .deck{position:static; transform:none!important; width:1280px; height:auto}
+    .slide{position:relative; inset:auto; width:1280px; height:720px; opacity:1!important;
+      visibility:visible!important; page-break-after:always; break-after:page}
+    [data-anim]{opacity:1!important; transform:none!important; animation:none!important}
+  }
+</style>
+</head>
+<body>
+  <div class="hint" id="hint"><kbd>↑</kbd> <kbd>↓</kbd> 이동 · <kbd>F</kbd> 전체화면</div>
+
+  <div class="stage">
+    <div class="deck" id="deck">
+
+      <!-- ============================================================= -->
+      <!-- 아래 예시 슬라이드들은 컴포넌트 견본입니다.                     -->
+      <!-- 실제 제작 시 이 블록들을 지우고 문서 내용으로 채우세요.         -->
+      <!-- 색상은 azure → violet → amber 순으로 순환시키세요.             -->
+      <!-- cover 슬라이드에는 반드시 class="cover"를 붙이세요(목차 점 색 구분). -->
+      <!-- ============================================================= -->
+
+      <!-- 예시 A · 표지(cover) -->
+      <section class="slide cover active">
+        <div class="eyebrow" data-anim style="--d:0"><b>{{주제 라벨}}</b><span class="en">· ORIENTATION</span></div>
+        <h1 class="title" data-anim style="--d:1">{{큰 제목 1줄}}<br><span class="mark">{{강조 제목 2줄}}</span></h1>
+        <p class="sub" data-anim style="--d:2">{{부제 · 키워드 나열}}<br>{{한 줄 요약}}</p>
+      </section>
+
+      <!-- 예시 B · 목차(agenda) -->
+      <section class="slide">
+        <div class="head" data-n="01">
+          <div class="eyebrow" data-anim style="--d:0">목차 <span class="en">AGENDA</span></div>
+          <h2 class="title" data-anim style="--d:1">오늘 함께 볼 <span class="mark">{{갈래 수}}</span></h2>
+          <p class="sub" data-anim style="--d:2">{{목차 한 줄 소개}}</p>
+        </div>
+        <div class="agenda">
+          <div class="arow" data-anim style="--d:3; --ac:var(--a1); --act:var(--a1t)">
+            <div class="no">01</div>
+            <div class="tx"><h3>{{항목명}}</h3><p>{{세부 키워드}}</p></div>
+            <div class="en">SECTION</div>
+          </div>
+          <div class="arow" data-anim style="--d:4; --ac:var(--a2); --act:var(--a2t)">
+            <div class="no">02</div>
+            <div class="tx"><h3>{{항목명}}</h3><p>{{세부 키워드}}</p></div>
+            <div class="en">SECTION</div>
+          </div>
+          <div class="arow" data-anim style="--d:5; --ac:var(--a3); --act:var(--a3t)">
+            <div class="no">03</div>
+            <div class="tx"><h3>{{항목명}}</h3><p>{{세부 키워드}}</p></div>
+            <div class="en">SECTION</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 예시 C · 부 구분(divider) — cover 재사용 -->
+      <section class="slide cover">
+        <div class="eyebrow" data-anim style="--d:0"><b>제1부 · {{부 제목}}</b><span class="en">· PART</span></div>
+        <h1 class="title" data-anim style="--d:1">{{도입 질문 1줄}}<br><span class="mark">{{강조 2줄}}</span></h1>
+        <p class="sub" data-anim style="--d:2">{{이 부에서 다룰 내용}}</p>
+      </section>
+
+      <!-- 예시 D · 2단 대비(duo) -->
+      <section class="slide">
+        <div class="head" data-n="02">
+          <div class="eyebrow" data-anim style="--d:0">{{번호}} · {{소주제}} <span class="en">TOPIC</span></div>
+          <h2 class="title" data-anim style="--d:1">{{개념 A}} vs <span class="mark">{{개념 B}}</span></h2>
+          <p class="sub" data-anim style="--d:2">{{대비의 핵심}}</p>
+        </div>
+        <div class="duo">
+          <div class="panel" data-anim style="--d:3; --pc:var(--a1); --pct:var(--a1t); --pbg:var(--a1b)">
+            <div class="pk">{{좌측 라벨}}</div>
+            <h3>{{좌측 제목}}</h3>
+            <ul class="pts" style="flex:0 0 auto; margin-top:44px">
+              <li>{{요점}} — <b>{{강조}}</b></li>
+              <li><b>{{키워드}}</b> — {{설명}}</li>
+              <li>{{요점}}</li>
+            </ul>
+          </div>
+          <div class="panel" data-anim style="--d:4; --pc:var(--a3); --pct:var(--a3t); --pbg:var(--a3b)">
+            <div class="pk">{{우측 라벨}}</div>
+            <h3>{{우측 제목}}</h3>
+            <ul class="pts" style="flex:0 0 auto; margin-top:44px">
+              <li>{{요점}} — <b>{{강조}}</b></li>
+              <li><b>{{키워드}}</b> — {{설명}}</li>
+              <li>{{요점}}</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <!-- 예시 E · 3단 카드(cards) -->
+      <section class="slide">
+        <div class="head" data-n="03">
+          <div class="eyebrow" data-anim style="--d:0">{{번호}} · {{소주제}} <span class="en">TOPIC</span></div>
+          <h2 class="title" data-anim style="--d:1">{{제목}} <span class="mark">{{강조}}</span></h2>
+          <p class="sub" data-anim style="--d:2">{{한 줄 설명}}</p>
+        </div>
+        <div class="cards">
+          <div class="card" data-anim style="--d:3; --c:var(--a1); --ct:var(--a1t)">
+            <div class="idx">01</div><h3>{{카드 제목}}</h3>
+            <p>{{설명 문장.}} <b>{{강조}}</b></p>
+          </div>
+          <div class="card" data-anim style="--d:4; --c:var(--a2); --ct:var(--a2t)">
+            <div class="idx">02</div><h3>{{카드 제목}}</h3>
+            <p>{{설명 문장.}} <b>{{강조}}</b></p>
+          </div>
+          <div class="card" data-anim style="--d:5; --c:var(--a3); --ct:var(--a3t)">
+            <div class="idx">03</div><h3>{{카드 제목}}</h3>
+            <p>{{설명 문장.}} <b>{{강조}}</b></p>
+          </div>
+        </div>
+      </section>
+
+      <!-- 예시 F · 흐름(flow: 3 role + banner) -->
+      <section class="slide">
+        <div class="head" data-n="04">
+          <div class="eyebrow" data-anim style="--d:0">{{번호}} · {{소주제}} <span class="en">FLOW</span></div>
+          <h2 class="title" data-anim style="--d:1">{{제목}} <span class="mark">{{강조}}</span></h2>
+          <p class="sub" data-anim style="--d:2">{{한 줄 설명}}</p>
+        </div>
+        <div class="flow">
+          <div class="role" data-anim style="--d:3; --rc:var(--a1); --rcT:var(--a1t); --g:var(--a1)">
+            <div class="lab"><i></i>STEP 01</div>
+            <h3>{{단계명}}</h3>
+            <div class="items">{{내용}}<br>{{보조}}</div>
+            <div class="note">{{각주}}</div>
+          </div>
+          <div class="arrow" data-anim style="--d:4">→</div>
+          <div class="role" data-anim style="--d:5; --rc:var(--a2); --rcT:var(--a2t); --g:var(--a2)">
+            <div class="lab"><i></i>STEP 02</div>
+            <h3>{{단계명}}</h3>
+            <div class="items">{{내용}}<br>{{보조}}</div>
+            <div class="note">{{각주}}</div>
+          </div>
+          <div class="arrow" data-anim style="--d:6">→</div>
+          <div class="role" data-anim style="--d:7; --rc:var(--a3); --rcT:var(--a3t); --g:var(--a3)">
+            <div class="lab"><i></i>STEP 03</div>
+            <h3>{{단계명}}</h3>
+            <div class="items">{{내용}}<br>{{보조}}</div>
+            <div class="note">{{각주}}</div>
+          </div>
+        </div>
+        <div class="banner" data-anim style="--d:8">{{핵심 한 문장}} — <b>{{강조}}</b></div>
+      </section>
+
+      <!-- 예시 G · 넓은 정의 목록(wide deflist) -->
+      <section class="slide">
+        <div class="head" data-n="05">
+          <div class="eyebrow" data-anim style="--d:0">{{번호}} · {{소주제}} <span class="en">GLOSSARY</span></div>
+          <h2 class="title" data-anim style="--d:1">{{제목}} <span class="mark">{{강조}}</span></h2>
+          <p class="sub" data-anim style="--d:2">{{한 줄 설명}}</p>
+        </div>
+        <div class="wide" data-anim style="--d:3">
+          <div class="panel" style="--pc:var(--a1); --pct:var(--a1t)">
+            <div class="deflist">
+              <div class="row"><div class="cw"><span class="c">{{용어}}</span></div><div class="k">{{짧은 정의}}</div><div class="d">{{설명}}</div></div>
+              <div class="row"><div class="cw"><span class="c">{{용어}}</span></div><div class="k">{{짧은 정의}}</div><div class="d">{{설명}}</div></div>
+              <div class="row"><div class="cw"><span class="c">{{용어}}</span></div><div class="k">{{짧은 정의}}</div><div class="d">{{설명}}</div></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 예시 H · 마무리(closing) -->
+      <section class="slide cover">
+        <div class="eyebrow" data-anim style="--d:0"><b>마무리</b><span class="en">· CLOSING</span></div>
+        <h1 class="title" data-anim style="--d:1">{{맺음말 1줄}}<br><span class="mark">{{강조 2줄}}</span></h1>
+        <p class="sub" data-anim style="--d:2">{{정리 문장}}</p>
+        <div class="legend" data-anim style="--d:3">
+          <span class="pill human"><i></i>질문 · Q&amp;A</span>
+        </div>
+      </section>
+
+    </div>
+  </div>
+
+  <div class="brandbar" id="brandbar">
+    <div class="pnow"><b id="partname"></b></div>
+    <div class="pbar" id="pbar"></div>
+    <div class="dk"><b id="pageno"></b> · {{DECK_TITLE}}</div>
+  </div>
+
+<script>
+  const slides=[...document.querySelectorAll('.slide')];
+  const deck=document.getElementById('deck');
+  const N=slides.length;
+  let i=0;
+  // 부(제N부) 구간을 잡는다 — 구분 슬라이드(cover)의 eyebrow 가 '제N부'로 시작하면 새 부.
+  const brandbar=document.getElementById('brandbar');
+  const partName=document.getElementById('partname');
+  const pbar=document.getElementById('pbar');
+  const pageNo=document.getElementById('pageno');
+  const partOf=new Array(N).fill(null), parts=[];
+  {
+    let cur=null;
+    slides.forEach((s,k)=>{
+      const b=s.querySelector('.eyebrow b');
+      const label=b?b.textContent.trim():'';
+      if(s.classList.contains('cover')){
+        // '제N부' 구분 슬라이드는 새 부를 연다. 그 밖의 cover(표지·목차·마무리)는 부를 닫는다.
+        if(/^제\s*\d+부/.test(label)){
+          cur={name:label.replace(/\s*·\s*PART.*$/i,'').trim(), start:k, count:0, idx:parts.length};
+          parts.push(cur);
+        } else { cur=null; }
+      }
+      if(cur){ partOf[k]=cur; cur.count++; }
+    });
+    parts.forEach(p=>{
+      const seg=document.createElement('i'), track=document.createElement('span');
+      track.appendChild(document.createElement('b'));
+      seg.appendChild(track);
+      seg.title=p.name;
+      // 칸 안에서 누른 가로 위치가 그 부의 몇 번째 장인지를 정한다 — 모든 장에 닿는다.
+      seg.addEventListener('click',e=>{
+        const r=seg.getBoundingClientRect();
+        const t=Math.min(Math.max((e.clientX-r.left)/r.width,0),1);
+        go(p.start+Math.min(p.count-1,Math.floor(t*p.count)));
+      });
+      pbar.appendChild(seg);
+    });
+  }
+  const segs=[...pbar.querySelectorAll('b')];
+  const pad=n=>String(n).padStart(2,'0');
+  function go(n){
+    if(!Number.isFinite(n)) return;   // NaN 이 들어오면 활성 슬라이드가 통째로 사라진다
+    i=Math.max(0,Math.min(N-1,n));
+    slides.forEach((s,k)=>s.classList.toggle('active',k===i));
+    pageNo.textContent=pad(i+1)+' / '+pad(N);
+    const p=partOf[i];
+    if(p){
+      brandbar.classList.add('inpart');
+      partName.textContent=p.name;
+      segs.forEach((b,x)=>{ b.style.width = x<p.idx ? '100%' : x>p.idx ? '0%' : ((i-p.start+1)/p.count*100)+'%'; });
+    } else { brandbar.classList.remove('inpart'); }
+    history.replaceState(null,'','#'+(i+1));
+  }
+  function fit(){ const s=Math.min(innerWidth/1280, innerHeight/720); deck.style.transform=`translate(-50%,-50%) scale(${s})`; }
+  addEventListener('resize',fit);
+  addEventListener('keydown',e=>{
+    if(['ArrowRight','ArrowDown','PageDown',' ','Spacebar'].includes(e.key)){e.preventDefault(); go(i+1);}
+    else if(['ArrowLeft','ArrowUp','PageUp'].includes(e.key)){e.preventDefault(); go(i-1);}
+    else if(e.key==='Home'){go(0);} else if(e.key==='End'){go(N-1);}
+    else if(e.key==='f'||e.key==='F'){toggleFs();}
+  });
+  function toggleFs(){ if(!document.fullscreenElement){document.documentElement.requestFullscreen&&document.documentElement.requestFullscreen();} else {document.exitFullscreen&&document.exitFullscreen();} }
+  let sx=0;
+  addEventListener('touchstart',e=>sx=e.touches[0].clientX,{passive:true});
+  addEventListener('touchend',e=>{const dx=e.changedTouches[0].clientX-sx; if(Math.abs(dx)>50) go(i+(dx<0?1:-1));},{passive:true});
+  setTimeout(()=>{const h=document.getElementById('hint'); if(h) h.style.opacity=0;},4200);
+  const start=parseInt((location.hash||'').replace('#',''));
+  fit();
+  go((start>=1&&start<=N)?start-1:0);
+</script>
+</body>
+</html>
