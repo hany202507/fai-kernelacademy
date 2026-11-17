@@ -218,4 +218,4 @@ PowerShell 과 Chrome(또는 Edge)이 필요합니다. Windows 는 PowerShell �
 
 ## 문의
 
-박상정 (ptsjms85@gmail.com)
+박상정 ([hello@kernelspace.io](mailto:hello@kernelspace.io))

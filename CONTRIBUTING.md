@@ -107,4 +107,4 @@ git config core.hooksPath .githooks
 
 ## 문의
 
-박상정 (ptsjms85@gmail.com)
+박상정 ([hello@kernelspace.io](mailto:hello@kernelspace.io))
